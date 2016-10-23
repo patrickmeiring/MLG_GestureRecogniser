@@ -7,20 +7,34 @@
 #define __MLG_GESTURE_RECOGNISER_H__
 
 // Represents a frame of sensor data.
+// The underlying X Y and Z axes should be
+// allocated as follows:
+// - Z: Heading/Yaw, the direction in which
+//      the user's arm is pointing.
+// - Y: Roll: the amount the user's arm has
+//      rolled. 
+// - X: Pitch: If the user's arm is pointing
+//      up or down.
+// If you are using an external IMU, you
+// may able to remap your axes to match this
+// scheme in case your sensor mounting does
+// not conform to this.
 typedef struct {
-  // Device roll, in degrees.
-  // Should be approximately zero at rest.
-  // Range should be between -180.0 and 180.0
-  float roll;
+  // The first component of the quaternion 
+  // representing the device orientation.
+  float quaternionW;
 
-  // Device pitch, in degrees.
-  // Should be approximately zero at rest.
-  // Range should be between -90.0 and 90.0
-  float pitch;
+  // The second component of the quaternion 
+  // representing the device orientation.
+  float quaternionX;
 
-  // Device heading, in degrees.
-  // Range should be between 0.0 and 360.0
-  float heading;
+  // The third component of the quaternion 
+  // representing the device orientation.
+  float quaternionY;
+
+  // The fourth component of the quaternion 
+  // representing the device orientation.
+  float quaternionZ;
 
   // Linear acceleration along X-axis, 
   // in meters/sec^2. Should be the average
@@ -36,21 +50,9 @@ typedef struct {
   // in meters/sec^2. Should be the average
   // observed over the sample window.
   float linearAccelerationZ;
-
-  // Acceleration due to gravity along X-axis, 
-  // in meters/sec^2
-  float gravityX;
-  
-  // Acceleration due to gravity along Y-axis, 
-  // in meters/sec^2
-  float gravityY;
-  
-  // Acceleration due to gravity along Z-axis, 
-  // in meters/sec^2. Should be approximately
-  // 9.81 at rest.
-  float gravityZ;
 } sensor_sample;
 
+#define GESTURE_COUNT (8)
 #define GESTURE_NONE (0)
 #define GESTURE_PUSH (1)
 #define GESTURE_PULL (2)
@@ -76,15 +78,18 @@ class AccelerationIntegralPreprocessor {
     float getValue(float input);
 };
 
-class HeadingDifferentialPreprocessor { 
+// Number of timesteps (at 10Hz) angle differentials are calculated over.
+#define MLG_ANGLE_DIFFERENTIAL_STEPS 6
+
+class AngleDifferentialPreprocessor { 
   private:
-    float _history[10];
+    float _history[MLG_ANGLE_DIFFERENTIAL_STEPS];
     int _historyPos;
     bool _initialised;
     
   public:
-    HeadingDifferentialPreprocessor();
-    ~HeadingDifferentialPreprocessor();
+    AngleDifferentialPreprocessor();
+    ~AngleDifferentialPreprocessor();
     float getValue(float input);
 };
 
@@ -312,9 +317,13 @@ class MLG_GestureRecogniser {
     AccelerationIntegralPreprocessor _xIntegral;
     AccelerationIntegralPreprocessor _yIntegral;
     AccelerationIntegralPreprocessor _zIntegral;
-    HeadingDifferentialPreprocessor _headingDifferential;
+    AngleDifferentialPreprocessor _headingDifferential;
+    AngleDifferentialPreprocessor _pitchDifferential;
+    AngleDifferentialPreprocessor _rollDifferential;
     int _sampleRate;
     int _sampleNumber;
+    int _recognisedGesture;
+    bool _suppressedGestures[GESTURE_COUNT];
     float _averagingFactor;
     float _xLinearAccelerationAverage;
     float _yLinearAccelerationAverage;
